@@ -336,6 +336,79 @@ document.addEventListener('DOMContentLoaded', function() {
       link.download = 'halftone.png';
       link.click();
     });
+
+    // Video Export
+    const exportVideoButton = document.getElementById('exportVideoButton');
+    const videoExportPanel = document.getElementById('videoExportPanel');
+    const videoExportStatus = document.getElementById('videoExportStatus');
+
+    exportVideoButton.addEventListener('click', () => {
+      if (!videoElement) {
+        alert('Please load a video first');
+        return;
+      }
+
+      exportVideoButton.disabled = true;
+      videoExportPanel.style.display = 'block';
+
+      const fps = 24;
+      const videoDuration = videoElement.duration;
+      const totalFrames = Math.ceil(videoDuration * fps);
+      const width = videoElement.videoWidth;
+      const height = videoElement.videoHeight;
+
+      // Create canvas and get stream
+      const exportCanvas = document.createElement('canvas');
+      exportCanvas.width = width;
+      exportCanvas.height = height;
+      const stream = exportCanvas.captureStream(fps);
+
+      // Create media recorder
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=vp9',
+        videoBitsPerSecond: 2500000
+      });
+
+      const chunks = [];
+      mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'halftone-video.webm';
+        link.click();
+        URL.revokeObjectURL(url);
+
+        exportVideoButton.disabled = false;
+        videoExportPanel.style.display = 'none';
+      };
+
+      mediaRecorder.start();
+
+      // Process frames
+      let frameCount = 0;
+      const ctx = exportCanvas.getContext('2d');
+
+      const processFrame = () => {
+        if (frameCount < totalFrames) {
+          videoElement.currentTime = frameCount / fps;
+          frameCount++;
+        } else {
+          mediaRecorder.stop();
+          return;
+        }
+      };
+
+      videoElement.addEventListener('seeked', () => {
+        generateHalftone(exportCanvas, 1);
+        const progress = Math.round((frameCount / totalFrames) * 100);
+        videoExportStatus.textContent = `Recording video... ${progress}%`;
+        processFrame();
+      });
+
+      processFrame();
+    });
     
     setupCanvasDimensions(800, 600);
     const ctx = halftoneCanvas.getContext('2d');
